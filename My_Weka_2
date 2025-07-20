@@ -113,10 +113,6 @@ main() {
     fi
 }
 
-# Create log file if it doesn't exist
-touch "$LOG_FILE" 2>/dev/null || {
-    echo "Error: Cannot create log file $LOG_FILE"
-    exit 1
 }
 
 # Execute main function
