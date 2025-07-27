@@ -12,9 +12,9 @@ log_message() {
     local level=$1
     local message=$2
     local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    
+
     echo "[$timestamp] [$level] [$NODE_NAME] $message" >> "$LOG_FILE"
-    
+
     # Simple log rotation
     if [ -f "$LOG_FILE" ] && [ $(stat -c%s "$LOG_FILE" 2>/dev/null || stat -f%z "$LOG_FILE" 2>/dev/null) -gt $MAX_LOG_SIZE ]; then
         mv "$LOG_FILE" "${LOG_FILE}.old"
@@ -22,36 +22,64 @@ log_message() {
     fi
 }
 
-# Function to check if Weka is running
-check_weka_status() {
+# Function to check if Weka is running (silent version)
+check_weka_status_silent() {
     local weka_output
     local exit_code
-    
+
     # Capture both output and exit code
     weka_output=$(weka local ps 2>&1)
     exit_code=$?
-    
+
+    # If command failed completely
+    if [ $exit_code -ne 0 ]; then
+        return 1  # Consider as not running
+    fi
+
+    # Check for indicators that Weka is NOT running
+    if echo "$weka_output" | grep -iq "not running\|down\|stopped\|failed\|inactive"; then
+        return 1  # Not running
+    fi
+
+    # Check for indicators that Weka IS running
+    if echo "$weka_output" | grep -iq "running\|active\|up\|started"; then
+        return 0  # Running
+    fi
+
+    # If we can't determine status clearly, assume it's down to be safe
+    return 1  # Assume not running
+}
+
+# Function to check if Weka is running (with logging for troubleshooting)
+check_weka_status() {
+    local weka_output
+    local exit_code
+
+    # Capture both output and exit code
+    weka_output=$(weka local ps 2>&1)
+    exit_code=$?
+
     # Log the raw output for debugging
     log_message "DEBUG" "weka local ps output: $weka_output"
-    
+
     # If command failed completely
     if [ $exit_code -ne 0 ]; then
         log_message "WARN" "weka local ps command failed with exit code: $exit_code"
         return 1  # Consider as not running
     fi
-    
+
     # Check for indicators that Weka is NOT running
     if echo "$weka_output" | grep -iq "not running\|down\|stopped\|failed\|inactive"; then
         log_message "INFO" "Weka status indicates service is down"
         return 1  # Not running
     fi
-    
+
     # Check for indicators that Weka IS running
     if echo "$weka_output" | grep -iq "running\|active\|up\|started"; then
         log_message "DEBUG" "Weka is running normally"
         return 0  # Running
     fi
-    
+
     # If we can't determine status clearly, assume it's down to be safe
     log_message "WARN" "Unable to determine Weka status clearly, assuming down"
     return 1  # Assume not running
@@ -60,23 +88,23 @@ check_weka_status() {
 # Function to restart Weka
 restart_weka() {
     log_message "INFO" "Attempting to restart Weka..."
-    
+
     local restart_output
     local exit_code
-    
+
     # Execute restart command
     restart_output=$(weka local restart 2>&1)
     exit_code=$?
-    
+
     # Log the restart output
     log_message "DEBUG" "weka local restart output: $restart_output"
-    
+
     if [ $exit_code -eq 0 ]; then
         log_message "INFO" "Weka restart command executed successfully"
-        
+
         # Wait a moment for the service to initialize
         sleep 5
-        
+
         # Verify the restart worked
         if check_weka_status; then
             log_message "INFO" "Weka restart successful - service is now running"
@@ -93,15 +121,24 @@ restart_weka() {
 
 # Main execution function
 main() {
-    log_message "INFO" "Starting Weka status check"
-    
-    # Check current Weka status
-    if check_weka_status; then
-        log_message "INFO" "Weka is running normally - no action needed"
+    # Check current Weka status silently first
+    if check_weka_status_silent; then
+        # Weka is running normally - exit silently without logging
         exit 0
     else
-        log_message "WARN" "Weka is not running - attempting restart"
-        
+        # Weka is down - now we start logging and attempt recovery
+
+        # Create log file if it doesn't exist (only when needed)
+        touch "$LOG_FILE" 2>/dev/null || {
+            echo "Error: Cannot create log file $LOG_FILE" >&2
+            exit 1
+        }
+
+        log_message "WARN" "Weka is not running - starting recovery process"
+
+        # Check status again with logging for troubleshooting
+        check_weka_status
+
         # Attempt to restart
         if restart_weka; then
             log_message "INFO" "Weka successfully restarted"
@@ -113,7 +150,6 @@ main() {
     fi
 }
 
-}
-
 # Execute main function
 main
+ 
