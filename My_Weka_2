@@ -134,7 +134,7 @@ restart_weka() {
         log_message "INFO" "Weka restart command executed successfully"
 
         # Wait a moment for the service to initialize
-        sleep 10
+        sleep 20
 
         # Verify the restart worked
         if check_weka_status; then
