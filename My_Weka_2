@@ -27,8 +27,8 @@ check_weka_status_silent() {
     local weka_output
     local exit_code
 
-    # Capture both output and exit code
-    weka_output=$(weka local ps 2>&1)
+    # Capture both output and exit code, removing null bytes
+    weka_output=$(weka local ps 2>&1 | tr -d '\0')
     exit_code=$?
 
     # If command failed completely
@@ -36,12 +36,26 @@ check_weka_status_silent() {
         return 1  # Consider as not running
     fi
 
-    # Check for indicators that Weka is NOT running
+    # Check if we have a valid table output with STATE column
+    if echo "$weka_output" | grep -q "STATE"; then
+        # Check the STATE column for "Running"
+        if echo "$weka_output" | grep -v "STATE" | grep -q "Running"; then
+            # Container is running, but check for serious connectivity issues
+            if echo "$weka_output" | grep -iq "timed out\|connection failed\|reject reason"; then
+                return 1  # Consider this as needing restart
+            else
+                return 0  # Container running normally
+            fi
+        else
+            return 1  # Container is not running
+        fi
+    fi
+
+    # Fallback to original keyword checking if table format not found
     if echo "$weka_output" | grep -iq "not running\|down\|stopped\|failed\|inactive"; then
         return 1  # Not running
     fi
 
-    # Check for indicators that Weka IS running
     if echo "$weka_output" | grep -iq "running\|active\|up\|started"; then
         return 0  # Running
     fi
@@ -55,8 +69,8 @@ check_weka_status() {
     local weka_output
     local exit_code
 
-    # Capture both output and exit code
-    weka_output=$(weka local ps 2>&1)
+    # Capture both output and exit code, removing null bytes
+    weka_output=$(weka local ps 2>&1 | tr -d '\0')
     exit_code=$?
 
     # Log the raw output for debugging
@@ -68,13 +82,30 @@ check_weka_status() {
         return 1  # Consider as not running
     fi
 
-    # Check for indicators that Weka is NOT running
+    # Check if we have a valid table output with STATE column
+    if echo "$weka_output" | grep -q "STATE"; then
+        # Check the STATE column for "Running"
+        if echo "$weka_output" | grep -v "STATE" | grep -q "Running"; then
+            # Container is running, but check for connectivity issues
+            if echo "$weka_output" | grep -iq "timed out\|connection failed\|reject reason"; then
+                log_message "WARN" "Weka container running but has connectivity issues - restart needed"
+                return 1  # Consider this as needing restart
+            else
+                log_message "DEBUG" "Weka container is running normally"
+                return 0  # Container running normally
+            fi
+        else
+            log_message "INFO" "Weka container state is not Running"
+            return 1  # Container is not running
+        fi
+    fi
+
+    # Fallback to original keyword checking if table format not found
     if echo "$weka_output" | grep -iq "not running\|down\|stopped\|failed\|inactive"; then
         log_message "INFO" "Weka status indicates service is down"
         return 1  # Not running
     fi
 
-    # Check for indicators that Weka IS running
     if echo "$weka_output" | grep -iq "running\|active\|up\|started"; then
         log_message "DEBUG" "Weka is running normally"
         return 0  # Running
@@ -92,8 +123,8 @@ restart_weka() {
     local restart_output
     local exit_code
 
-    # Execute restart command
-    restart_output=$(weka local restart 2>&1)
+    # Execute restart command, removing null bytes
+    restart_output=$(weka local restart 2>&1 | tr -d '\0')
     exit_code=$?
 
     # Log the restart output
@@ -103,7 +134,7 @@ restart_weka() {
         log_message "INFO" "Weka restart command executed successfully"
 
         # Wait a moment for the service to initialize
-        sleep 5
+        sleep 10
 
         # Verify the restart worked
         if check_weka_status; then
@@ -134,7 +165,7 @@ main() {
             exit 1
         }
 
-        log_message "WARN" "Weka is not running - starting recovery process"
+        log_message "WARN" "Weka is not running or has connectivity issues - starting recovery process"
 
         # Check status again with logging for troubleshooting
         check_weka_status
@@ -152,4 +183,3 @@ main() {
 
 # Execute main function
 main
- 
