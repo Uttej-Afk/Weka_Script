@@ -120,14 +120,49 @@ check_weka_status() {
 restart_weka() {
     log_message "INFO" "Attempting to restart Weka..."
 
-    local restart_output
+    local temp_file="/tmp/weka_restart_$$"
+    local restart_pid
     local exit_code
 
-    # Execute restart command, removing null bytes
-    restart_output=$(weka local restart 2>&1 | tr -d '\0')
-    exit_code=$?
+    # Start restart in background to avoid hanging
+    weka local restart > "$temp_file" 2>&1 &
+    restart_pid=$!
 
-    # Log the restart output
+    # Monitor the restart process with timeout
+    local elapsed=0
+    local timeout=60
+
+    while [ $elapsed -lt $timeout ]; do
+        # Check if process is still running
+        if ! kill -0 $restart_pid 2>/dev/null; then
+            # Process finished
+            wait $restart_pid
+            exit_code=$?
+            break
+        fi
+        
+        sleep 2
+        elapsed=$((elapsed + 2))
+    done
+
+    # Handle timeout case
+    if [ $elapsed -ge $timeout ]; then
+        kill -TERM $restart_pid 2>/dev/null
+        sleep 3
+        kill -KILL $restart_pid 2>/dev/null
+        exit_code=124  # Timeout exit code
+    fi
+
+    # Read restart output and handle null bytes (KEY FIX HERE)
+    local restart_output=""
+    if [ -f "$temp_file" ]; then
+        restart_output=$(cat "$temp_file" | tr -d '\0')  # ← NULL BYTE REMOVAL
+        rm -f "$temp_file"
+    else
+        restart_output="No output captured"
+    fi
+
+    # Log the restart output (your original logging)
     log_message "DEBUG" "weka local restart output: $restart_output"
 
     if [ $exit_code -eq 0 ]; then
@@ -149,6 +184,7 @@ restart_weka() {
         return 1
     fi
 }
+
 
 # Main execution function
 main() {
