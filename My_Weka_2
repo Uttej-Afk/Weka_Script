@@ -2,7 +2,7 @@
 # weka_auto_restart.sh - Simple Weka status check and auto-restart
 
 NODE_NAME=$(hostname)
-LOG_FILE="out.log"
+LOG_FILE="/scratch/admins/uttej/weka-client-logs"
 
 # Function to log with timestamp and node name
 log_message() {
