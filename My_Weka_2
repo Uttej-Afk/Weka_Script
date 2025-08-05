@@ -1,12 +1,14 @@
 #!/bin/bash
-LOG_FILE="/scratch/admins/uttej/weka-client-logs"
+
+CLUSTER_NAME=${CLUSTER_NAME:-"unknown_cluster"}
+LOG_DIR="/scratch/admins/uttej/${CLUSTER_NAME}_$(date '+%y-%m-%d').log"
 NODE_NAME=$(hostname)
 
 weka_output=$(weka local ps 2>&1) && echo "$weka_output"
 
 if echo "$weka_output" | grep -iq "STATUS: DOWN"; then
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$NODE_NAME] Restarting Weka..." | tee -a "$LOG_FILE"
-    weka local restart 2>&1 | tee -a "$LOG_FILE"
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$NODE_NAME] Done" | tee -a "$LOG_FILE"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$NODE_NAME] Restarting Weka..." >> "$LOG_DIR"
+    weka local restart 2>&1 >> "$LOG_DIR"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$NODE_NAME] Done" >> "$LOG_DIR"
     sleep 45
 fi
