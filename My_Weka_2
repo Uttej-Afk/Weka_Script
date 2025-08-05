@@ -8,5 +8,5 @@ if echo "$weka_output" | grep -iq "STATUS: DOWN"; then
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$NODE_NAME] Restarting Weka..." | tee -a "$LOG_FILE"
     weka local restart 2>&1 | tee -a "$LOG_FILE"
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$NODE_NAME] Done" | tee -a "$LOG_FILE"
+    sleep 45
 fi
-
