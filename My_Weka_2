@@ -1,58 +1,14 @@
 #!/bin/bash
-# weka_auto_restart.sh - Simple Weka status check and auto-restart
 
+# Use node name instead of cluster name for logging
 NODE_NAME=$(hostname)
-LOG_FILE="/scratch/admins/uttej/weka-client-logs"
+LOG_DIR="/scratch/admins/uttej/${NODE_NAME}_$(date '+%y-%m-%d').log"
 
-# Function to log with timestamp and node name
-log_message() {
-    local message="$1"
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    echo "[$timestamp] [$NODE_NAME] $message" | tee -a "$LOG_FILE"
-}
+weka_output=$(weka local ps 2>&1) && echo "$weka_output"
 
-# Function to check if Weka is down
-is_weka_down() {
-    local weka_output=$(weka local ps 2>&1)
-    echo "$weka_output"  # Print to terminal
-    
-    # Check for "STATUS: DOWN" (case insensitive)
-    if echo "$weka_output" | grep -iq "STATUS: DOWN"; then
-        return 0  # Weka is down
-    else
-        return 1  # Weka is running
-    fi
-}
-
-# Function to restart Weka
-restart_weka() {
-    log_message "Attempting to restart Weka..."
-    local restart_output=$(weka local restart 2>&1)
-    echo "$restart_output"  # Print to terminal
-    
-    if [ $? -eq 0 ]; then
-        log_message "Weka restart command executed successfully"
-        sleep 10  # Wait for service to initialize
-        return 0
-    else
-        log_message "Weka restart command failed"
-        return 1
-    fi
-}
-
-# Main execution
-main() {
-    if is_weka_down; then
-        log_message "Weka is DOWN - starting recovery process"
-        
-        if restart_weka; then
-            log_message "Weka successfully restarted"
-        else
-            log_message "Failed to restart Weka - manual intervention required"
-            exit 1
-        fi
-    fi
-}
-
-# Execute main function
-main
+if echo "$weka_output" | grep -iq "STATUS: DOWN"; then
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$NODE_NAME] Restarting Weka..." >> "$LOG_DIR"
+weka local restart 2>&1 >> "$LOG_DIR"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$NODE_NAME] Done" >> "$LOG_DIR"
+sleep 45
+fi
