@@ -2,7 +2,7 @@
 
 # Use node name instead of cluster name for logging
 NODE_NAME=$(hostname)
-LOG_DIR="/scratch/admins/uttej/${NODE_NAME}_$(date '+%y-%m-%d').log"
+LOG_DIR="/var/tmp/${NODE_NAME}_$(date '+%y-%m-%d').log"
 
 # Always log script execution
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$NODE_NAME] Cron job started - checking Weka status..." >> "$LOG_DIR"
