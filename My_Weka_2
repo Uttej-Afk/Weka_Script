@@ -1,19 +1,14 @@
 #!/bin/bash
-
 # Use node name instead of cluster name for logging
 NODE_NAME=$(hostname)
 LOG_DIR="/var/tmp/${NODE_NAME}_$(date '+%y-%m-%d').log"
 
-# Always log script execution
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$NODE_NAME] Cron job started - checking Weka status..." >> "$LOG_DIR"
-
-weka_output=$(weka local ps 2>&1) && echo "$weka_output"
+weka_output=$(weka local ps 2>&1)
 
 if echo "$weka_output" | grep -iq "STATUS: DOWN"; then
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$NODE_NAME] Weka status: DOWN - Restarting..." >> "$LOG_DIR"
     weka local restart 2>&1 >> "$LOG_DIR"
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$NODE_NAME] Restart completed" >> "$LOG_DIR"
     sleep 45
-else
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$NODE_NAME] Weka status: Running normally" >> "$LOG_DIR"
 fi
+ 
