@@ -3,12 +3,27 @@
 NODE_NAME=$(hostname)
 LOG_DIR="/var/tmp/${NODE_NAME}_$(date '+%y-%m-%d').log"
 
+timestamp() { date '+%Y-%m-%d %H:%M:%S'; }
+
 weka_output=$(weka local ps 2>&1)
 
+# Handle case: weka-agent isn't running
+if echo "$weka_output" | grep -qi "weka-agent isn't running"; then
+    echo "[$(timestamp)] [$NODE_NAME] weka-agent not running - starting agent service..." >> "$LOG_DIR"
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl start weka-agent >> "$LOG_DIR" 2>&1
+    else
+        service weka-agent start >> "$LOG_DIR" 2>&1
+    fi
+    sleep 10
+    # Re-check after starting agent
+    weka_output=$(weka local ps 2>&1)
+fi
+
+# Handle STATUS: DOWN
 if echo "$weka_output" | grep -iq "STATUS: DOWN"; then
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$NODE_NAME] Weka status: DOWN - Restarting..." >> "$LOG_DIR"
-    weka local restart 2>&1 >> "$LOG_DIR"
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$NODE_NAME] Restart completed" >> "$LOG_DIR"
+    echo "[$(timestamp)] [$NODE_NAME] Weka status: DOWN - Restarting..." >> "$LOG_DIR"
+    weka local restart >> "$LOG_DIR" 2>&1
+    echo "[$(timestamp)] [$NODE_NAME] Restart completed" >> "$LOG_DIR"
     sleep 45
 fi
- 
